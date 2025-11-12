@@ -12,7 +12,7 @@
 using namespace std;
 
 // ───────────────────────────────
-// 🔹 Portable SHA256 (no OpenSSL)
+// 🔹 안전한 SHA256 (경계보호 포함)
 // ───────────────────────────────
 static inline uint32_t ROTR(uint32_t x, uint32_t n){return (x>>n)|(x<<(32-n));}
 
@@ -36,7 +36,7 @@ string sha256(const string &input){
     uint32_t H[8]={0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
                    0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
 
-    for(size_t chunk=0;chunk<data.size();chunk+=64){
+    for(size_t chunk=0;chunk+63<data.size();chunk+=64){
         uint32_t w[64];
         for(int i=0;i<16;i++){
             size_t idx=chunk+4*i;
@@ -61,13 +61,12 @@ string sha256(const string &input){
         H[0]+=a;H[1]+=b;H[2]+=c;H[3]+=d;H[4]+=e;H[5]+=f;H[6]+=g;H[7]+=h;
     }
     ostringstream oss;
-    for(int i=0;i<8;i++)
-        oss<<hex<<setw(8)<<setfill('0')<<H[i];
+    for(int i=0;i<8;i++)oss<<hex<<setw(8)<<setfill('0')<<H[i];
     return oss.str();
 }
 
 // ───────────────────────────────
-// 🔹 Tokenizer & AST same as before
+// 🔹 Tokenizer
 // ───────────────────────────────
 vector<string> tokenize(const string& src){
     regex r(R"([\w]+|[{}();=+\-*/<>])");
@@ -76,36 +75,49 @@ vector<string> tokenize(const string& src){
     for(;it!=end;++it)t.push_back(it->str());
     return t;
 }
+
 struct Node{string kind,name,type,value;vector<shared_ptr<Node>>children;};
 
+// ───────────────────────────────
+// 🔹 Parser (경계 검사 추가)
+// ───────────────────────────────
 shared_ptr<Node> parse_class(const vector<string>&t,size_t&i){
+    if(i+1>=t.size())return nullptr;
     auto n=make_shared<Node>();n->kind="Class";n->name=t[i+1];i+=2;
-    if(t[i]!="{")return n;++i;
+    if(i>=t.size()||t[i]!="{")return n;
+    ++i;
     while(i<t.size()&&t[i]!="}"){
-        if(t[i]=="int"||t[i]=="String"||t[i]=="void"){
+        if((t[i]=="int"||t[i]=="String"||t[i]=="void") && i+1<t.size()){
             string ty=t[i++],nm=t[i++];
-            if(t[i]=="("){
+            if(i<t.size()&&t[i]=="("){
                 auto m=make_shared<Node>();m->kind="Method";m->type=ty;m->name=nm;
-                while(i<t.size()&&t[i]!="{")++i;++i;
-                string b;while(i<t.size()&&t[i]!="}")b+=t[i++]+" ";++i;
+                while(i<t.size()&&t[i]!="{")++i;
+                if(i<t.size())++i;
+                string b;
+                while(i<t.size()&&t[i]!="}")b+=t[i++]+" ";
+                if(i<t.size())++i;
                 m->value=b;n->children.push_back(m);
-            }else if(t[i]=="="){
-                ++i;string val=t[i++];
+            }else if(i<t.size()&&t[i]=="="){
+                ++i;if(i>=t.size())break;string val=t[i++];
                 auto v=make_shared<Node>();v->kind="Var";v->type=ty;v->name=nm;v->value=val;
-                n->children.push_back(v);if(t[i]==";")++i;
+                n->children.push_back(v);
+                if(i<t.size()&&t[i]==";")++i;
             }
         }else ++i;
-    }++i;return n;
+    }
+    if(i<t.size())++i;
+    return n;
 }
 
 // ───────────────────────────────
-// 🔹 Runtime interpreter
+// 🔹 Runtime Interpreter
 // ───────────────────────────────
 class SemanticRuntime{
     unordered_map<string,string>vars;
     vector<string>ledger;
 public:
     void runMethod(const shared_ptr<Node>&m){
+        if(!m)return;
         ledger.push_back("Run "+m->name);
         interpret(m->value);
     }
@@ -114,12 +126,14 @@ public:
         for(size_t i=0;i<tok.size();++i){
             if(tok[i]=="System"&&i+5<tok.size()){
                 if(tok[i+1]=="."&&tok[i+2]=="out"&&tok[i+3]=="."&&tok[i+4]=="println"){
-                    i+=6;string msg;while(i<tok.size()&&tok[i]!=")")msg+=tok[i++]+" ";
+                    i+=6;string msg;
+                    while(i<tok.size()&&tok[i]!=")")msg+=tok[i++]+" ";
                     cout<<"🖨️ "<<regex_replace(msg,regex("\""),"")<<endl;
                     ledger.push_back("Print: "+msg);
                 }
             }else if(tok[i]=="int"&&i+3<tok.size()&&tok[i+2]=="="){
-                string name=tok[i+1],val=tok[i+3];vars[name]=val;
+                string name=tok[i+1],val=tok[i+3];
+                vars[name]=val;
                 cout<<"📦 "<<name<<" = "<<val<<endl;
                 ledger.push_back("Var: "+name+"="+val);
                 i+=3;
@@ -131,12 +145,13 @@ public:
         string c;for(auto&s:ledger)c+=s;
         f<<"# ProofLedger\nHash: "<<sha256(c)<<"\n\n";
         for(auto&s:ledger)f<<"- "<<s<<"\n";
-        f.close();cout<<"🧾 Ledger saved (SHA256 chain)\n";
+        f.close();
+        cout<<"🧾 Ledger saved (SHA256 chain)\n";
     }
 };
 
 // ───────────────────────────────
-// 🔹 Main entry
+// 🔹 Main
 // ───────────────────────────────
 int main(int argc,char*argv[]){
     if(argc<2){cerr<<"Usage: semantic_jvmfree_run <file.java>\n";return 1;}
@@ -145,9 +160,14 @@ int main(int argc,char*argv[]){
     stringstream buf;buf<<fin.rdbuf();
     auto tok=tokenize(buf.str());
     size_t i=0;shared_ptr<Node>cls;
-    while(i<tok.size()){if(tok[i]=="class")cls=parse_class(tok,i);else ++i;}
+    while(i<tok.size()){
+        if(tok[i]=="class")cls=parse_class(tok,i);
+        else ++i;
+    }
     if(!cls){cerr<<"Error: no class found.\n";return 1;}
     SemanticRuntime rt;
-    for(auto&m:cls->children)if(m->kind=="Method"&&m->name=="main")rt.runMethod(m);
+    for(auto&m:cls->children)
+        if(m->kind=="Method"&&m->name=="main")
+            rt.runMethod(m);
     rt.writeLedger();
 }
