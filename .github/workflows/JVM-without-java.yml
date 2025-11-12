@@ -1,11 +1,11 @@
-name: "🏛️ JVM Without Java — 3OS Meaning-Based Release"
+name: "🏛️ JVM Without Java — 3OS Meaning-Based Release (Stable Edition)"
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: "0 9 * * *"  # 매일 오전 9시 자동 빌드
+    - cron: "0 9 * * *"  # 매일 오전 9시 자동 빌드 및 릴리즈
 
 permissions:
   contents: write
@@ -29,18 +29,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "⚙️ Build Runtime & Transpiler"
+      - name: "⚙️ Verify Compiler"
+        shell: bash
+        run: |
+          echo "Compiler version:"
+          g++ --version || clang++ --version
+
+      - name: "🏗️ Build Runtime"
         shell: bash
         run: |
           mkdir -p build
+          echo "🔧 Building meaning-based runtime..."
           g++ -std=c++17 src/semantic_jvmfree_run.cpp -O2 -o build/jvmrun
           echo "✅ Build complete."
+          ls -lh build || dir build
 
       - name: "🧪 Run Example"
         shell: bash
         run: |
           echo 'class Hello { int x = 10; void main() { System.out.println("Running meaning-level Java in C++!"); int y = 3; System.out.println("Sum: " + y); } }' > Hello.java
-          ./build/jvmrun Hello.java || build\\jvmrun.exe Hello.java
+
+          echo "🚀 Running on $RUNNER_OS ..."
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ./build/jvmrun.exe Hello.java
+          else
+            ./build/jvmrun Hello.java
+          fi
+
+          echo "📄 ProofLedger:"
           cat proofledger.txt || type proofledger.txt
 
       - name: "📦 Package OS Artifact"
@@ -50,6 +66,7 @@ jobs:
           cp build/jvmrun* release/ || copy build\\jvmrun.exe release\\
           cp proofledger.txt release/ || copy proofledger.txt release\\
           tar -czf jvm-without-java-${{ matrix.os }}.tar.gz release
+          echo "✅ Packaged: jvm-without-java-${{ matrix.os }}.tar.gz"
 
       - name: "⬆️ Upload Artifact"
         uses: actions/upload-artifact@v4
@@ -63,6 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: "🏷️ Create Version Tag"
         id: tag
         run: |
@@ -72,6 +90,7 @@ jobs:
           git config user.email "actions@github.com"
           git tag $VERSION
           git push origin $VERSION
+          echo "🪶 Created tag $VERSION"
 
       - name: "⬇️ Download All Artifacts"
         uses: actions/download-artifact@v4
@@ -84,10 +103,11 @@ jobs:
           tag_name: ${{ steps.tag.outputs.version }}
           name: "JVM Without Java — ${{ steps.tag.outputs.version }}"
           body: |
-            🧱 **3OS Auto Release**
+            🧱 **3OS Auto Release (Stable)**
             - Runtime: `jvmrun`
             - ProofLedger: included
             - Built on: Ubuntu, macOS, Windows
+            - Auto-tag: **${{ steps.tag.outputs.version }}**
           files: |
             dist/jvm-without-java-ubuntu-latest.tar.gz
             dist/jvm-without-java-macos-latest.tar.gz
