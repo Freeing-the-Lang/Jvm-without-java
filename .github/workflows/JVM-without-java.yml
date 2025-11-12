@@ -1,4 +1,4 @@
-name: "🏛️ JVM Without Java — 3OS Executable Auto Release (Error-Proof Edition)"
+name: "🏛️ JVM Without Java — Executable Release (Full 3OS Edition)"
 
 on:
   push:
@@ -30,7 +30,11 @@ jobs:
         run: |
           mkdir -p build
           echo "🔧 Building runtime for $RUNNER_OS..."
-          g++ -std=c++17 src/semantic_jvmfree_run.cpp -O2 -o build/jvmrun
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            g++ -std=c++17 src/semantic_jvmfree_run.cpp -O2 -o build/jvmrun.exe
+          else
+            g++ -std=c++17 src/semantic_jvmfree_run.cpp -O2 -o build/jvmrun
+          fi
           echo "✅ Build complete."
           ls -lh build || dir build
 
@@ -52,26 +56,36 @@ jobs:
           cat proofledger.txt 2>/dev/null || type proofledger.txt 2>/dev/null || echo "No ProofLedger found."
           exit 0
 
-      - name: "📦 Package Executable"
+      - name: "📦 Package Executable & Ledger"
         shell: bash
         run: |
           mkdir -p release
-          echo "📦 Collecting build outputs..."
-          # ✅ Copy binary
+          echo "📦 Collecting outputs..."
           cp build/jvmrun* release/ 2>/dev/null || true
-          # ✅ Copy ledger file if it exists
           if [ -f "proofledger.txt" ]; then
-            cp proofledger.txt release/ || true
+            cp proofledger.txt release/
           else
-            echo "⚠️ No proofledger.txt found — skipping."
+            echo "⚠️ No proofledger.txt found."
           fi
-          # ✅ Pack by OS
+          echo "✅ Packaging..."
           if [ "$RUNNER_OS" = "Windows" ]; then
-            pwsh -Command "Compress-Archive -Path release -DestinationPath jvm-without-java-${{ matrix.os }}.zip"
+            pwsh -Command "Compress-Archive -Path release/* -DestinationPath jvm-without-java-${{ matrix.os }}.zip"
           else
             tar -czf jvm-without-java-${{ matrix.os }}.tar.gz release
           fi
-          echo "✅ Packaged successfully for $RUNNER_OS."
+          echo "✅ Done packaging for $RUNNER_OS."
+
+      - name: "📊 Compute SHA256 Hash"
+        id: hash
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            HASH=$(certutil -hashfile jvm-without-java-${{ matrix.os }}.zip SHA256 | findstr /v "SHA256" | findstr /r "[A-F0-9]" | tr -d '\r')
+            echo "hash=$HASH" >> $GITHUB_OUTPUT
+          else
+            HASH=$(sha256sum jvm-without-java-${{ matrix.os }}.tar.gz | awk '{print $1}')
+            echo "hash=$HASH" >> $GITHUB_OUTPUT
+          fi
 
       - name: "⬆️ Upload Artifact"
         uses: actions/upload-artifact@v4
@@ -104,16 +118,28 @@ jobs:
         with:
           path: dist
 
+      - name: "🧮 Calculate Combined SHA256"
+        id: hashes
+        run: |
+          echo "ubuntu_hash=$(sha256sum dist/jvm-without-java-ubuntu-latest.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "macos_hash=$(sha256sum dist/jvm-without-java-macos-latest.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "windows_hash=$(sha256sum dist/jvm-without-java-windows-latest.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+
       - name: "🚀 Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.version }}
           name: "JVM Without Java — ${{ steps.tag.outputs.version }}"
           body: |
-            🧱 **3OS Executable Auto Release (Error-Proof Edition)**
-            - ✅ Built & Packaged: Ubuntu, macOS, Windows
-            - 🧾 ProofLedger included (if generated)
-            - 🏷️ Auto-tag: `${{ steps.tag.outputs.version }}`
+            🧱 **3OS Executable Auto Release**
+            ✅ Meaning-level runtime compiled for 3 platforms  
+            🧾 ProofLedger included  
+            🏷️ Auto-tag: `${{ steps.tag.outputs.version }}`  
+
+            **🔒 SHA256 Checksums**
+            - Ubuntu: `${{ steps.hashes.outputs.ubuntu_hash }}`
+            - macOS: `${{ steps.hashes.outputs.macos_hash }}`
+            - Windows: `${{ steps.hashes.outputs.windows_hash }}`
           files: |
             dist/jvm-without-java-ubuntu-latest.tar.gz
             dist/jvm-without-java-macos-latest.tar.gz
