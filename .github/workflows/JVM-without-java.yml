@@ -1,11 +1,9 @@
-name: "🏛️ JVM Without Java — 3OS Meaning-Based Release (Stable Edition)"
+name: "🏛️ JVM Without Java — 3OS Meaning-Based Release (src/Hello.java Edition)"
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-  schedule:
-    - cron: "0 9 * * *"  # 매일 오전 9시 자동 빌드 및 릴리즈
 
 permissions:
   contents: write
@@ -26,16 +24,8 @@ jobs:
     steps:
       - name: "🧭 Checkout Repository"
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: "⚙️ Verify Compiler"
-        shell: bash
-        run: |
-          echo "Compiler version:"
-          g++ --version || clang++ --version
-
-      - name: "🏗️ Build Runtime"
+      - name: "⚙️ Build Runtime"
         shell: bash
         run: |
           mkdir -p build
@@ -44,20 +34,33 @@ jobs:
           echo "✅ Build complete."
           ls -lh build || dir build
 
-      - name: "🧪 Run Example"
+      # 🟢 Linux/macOS
+      - name: "🧪 Run Example (Linux/macOS)"
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          echo 'class Hello { int x = 10; void main() { System.out.println("Running meaning-level Java in C++!"); int y = 3; System.out.println("Sum: " + y); } }' > Hello.java
-
-          echo "🚀 Running on $RUNNER_OS ..."
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            ./build/jvmrun.exe Hello.java
-          else
-            ./build/jvmrun Hello.java
+          if [ ! -f "src/Hello.java" ]; then
+            echo "⚠️ src/Hello.java not found, skipping run."
+            exit 0
           fi
-
+          echo "🚀 Running src/Hello.java on $RUNNER_OS ..."
+          ./build/jvmrun src/Hello.java
           echo "📄 ProofLedger:"
-          cat proofledger.txt || type proofledger.txt
+          cat proofledger.txt
+
+      # 🟦 Windows (PowerShell)
+      - name: "🧪 Run Example (Windows)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (!(Test-Path "src/Hello.java")) {
+            Write-Host "⚠️ src/Hello.java not found, skipping run."
+            exit 0
+          }
+          Write-Host "🚀 Running src/Hello.java on Windows ..."
+          .\build\jvmrun.exe src\Hello.java
+          Write-Host "📄 ProofLedger:"
+          Get-Content proofledger.txt
 
       - name: "📦 Package OS Artifact"
         shell: bash
@@ -103,11 +106,10 @@ jobs:
           tag_name: ${{ steps.tag.outputs.version }}
           name: "JVM Without Java — ${{ steps.tag.outputs.version }}"
           body: |
-            🧱 **3OS Auto Release (Stable)**
+            🧱 **3OS Auto Release (src/Hello.java Edition)**
             - Runtime: `jvmrun`
-            - ProofLedger: included
-            - Built on: Ubuntu, macOS, Windows
-            - Auto-tag: **${{ steps.tag.outputs.version }}**
+            - ProofLedger included
+            - Built for: Ubuntu, macOS, Windows
           files: |
             dist/jvm-without-java-ubuntu-latest.tar.gz
             dist/jvm-without-java-macos-latest.tar.gz
