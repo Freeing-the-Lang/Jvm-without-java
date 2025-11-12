@@ -24,35 +24,40 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - name: "🧭 Checkout"
+      - name: "🧭 Checkout Repository"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Compiler"
-        uses: actions/setup-cpp@v1
-        with:
-          compiler: g++
+      - name: "⚙️ Verify Compiler"
+        shell: bash
+        run: |
+          echo "Using system compiler:"
+          g++ --version
 
-      - name: "🏗️ Build Interpreter"
+      - name: "🏗️ Build Interpreter & Transpiler"
         shell: bash
         run: |
           mkdir -p build
+          echo "🔧 Building meaning-based runtime..."
           g++ -std=c++17 src/semantic_jvmfree_run.cpp -lssl -lcrypto -o build/jvmrun
+          echo "🔧 Building semantic transpiler..."
           g++ -std=c++17 src/semantic_jvmfreec.cpp -o build/jvmc
 
-      - name: "🧪 Run Example"
+      - name: "🧪 Run Example (Hello.java)"
         shell: bash
         run: |
-          echo 'class Hello { void main() { System.out.println("GitHub Actions Run!"); } }' > Hello.java
+          echo 'class Hello { int x = 10; void main() { System.out.println("Running meaning-level Java in C++!"); int y = 3; System.out.println("Sum: " + y); } }' > Hello.java
           ./build/jvmrun Hello.java
           cat proofledger.txt
 
-      - name: "🧾 Upload ProofLedger"
+      - name: "🧾 Upload ProofLedger Artifact"
         uses: actions/upload-artifact@v4
         with:
           name: proofledger
           path: proofledger.txt
 
-      - name: "📦 Generate C++ Output"
+      - name: "📦 Generate C++ Transpiled Output"
         run: |
           ./build/jvmc Hello.java
+          echo "------ out.cpp ------"
           cat out.cpp
+
