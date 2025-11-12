@@ -1,0 +1,58 @@
+name: "🏛️ JVM Without Java — Meaning-Based Interpreter & C++ Transpiler"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [ closed ]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *"  # 매일 오전 9시 ProofLedger 자동 재검증
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jvm-without-java-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-3os:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: "🧭 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "⚙️ Setup Compiler"
+        uses: actions/setup-cpp@v1
+        with:
+          compiler: g++
+
+      - name: "🏗️ Build Interpreter"
+        shell: bash
+        run: |
+          mkdir -p build
+          g++ -std=c++17 src/semantic_jvmfree_run.cpp -lssl -lcrypto -o build/jvmrun
+          g++ -std=c++17 src/semantic_jvmfreec.cpp -o build/jvmc
+
+      - name: "🧪 Run Example"
+        shell: bash
+        run: |
+          echo 'class Hello { void main() { System.out.println("GitHub Actions Run!"); } }' > Hello.java
+          ./build/jvmrun Hello.java
+          cat proofledger.txt
+
+      - name: "🧾 Upload ProofLedger"
+        uses: actions/upload-artifact@v4
+        with:
+          name: proofledger
+          path: proofledger.txt
+
+      - name: "📦 Generate C++ Output"
+        run: |
+          ./build/jvmc Hello.java
+          cat out.cpp
