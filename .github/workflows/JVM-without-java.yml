@@ -12,16 +12,16 @@ on:
 permissions:
   contents: write
 
+# 🔒 취소 방지 및 안정 실행
 concurrency:
   group: jvm-without-java-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build-3os:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  build-ubuntu:
+    name: "🧱 Build & Run on Ubuntu"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: "🧭 Checkout Repository"
@@ -33,12 +33,12 @@ jobs:
           echo "Using system compiler:"
           g++ --version
 
-      - name: "🏗️ Build Interpreter & Transpiler"
+      - name: "🏗️ Build Meaning-Based Runtime & Transpiler"
         shell: bash
         run: |
           mkdir -p build
           echo "🔧 Building meaning-based runtime..."
-          g++ -std=c++17 src/semantic_jvmfree_run.cpp -lssl -lcrypto -o build/jvmrun
+          g++ -std=c++17 src/semantic_jvmfree_run.cpp -o build/jvmrun
           echo "🔧 Building semantic transpiler..."
           g++ -std=c++17 src/semantic_jvmfreec.cpp -o build/jvmc
 
@@ -46,7 +46,9 @@ jobs:
         shell: bash
         run: |
           echo 'class Hello { int x = 10; void main() { System.out.println("Running meaning-level Java in C++!"); int y = 3; System.out.println("Sum: " + y); } }' > Hello.java
+          echo "🚀 Running interpreter..."
           ./build/jvmrun Hello.java
+          echo "📄 ProofLedger.txt content:"
           cat proofledger.txt
 
       - name: "🧾 Upload ProofLedger Artifact"
@@ -56,8 +58,9 @@ jobs:
           path: proofledger.txt
 
       - name: "📦 Generate C++ Transpiled Output"
+        shell: bash
         run: |
+          echo "⚙️ Generating transpiled output..."
           ./build/jvmc Hello.java
           echo "------ out.cpp ------"
           cat out.cpp
-
