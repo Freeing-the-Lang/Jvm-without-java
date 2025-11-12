@@ -1,4 +1,4 @@
-name: "🏛️ JVM Without Java — Executable Release (Full 3OS Edition)"
+name: "🏛️ JVM Without Java — Executable Release (3OS + SHA256 Stable)"
 
 on:
   push:
@@ -67,7 +67,7 @@ jobs:
           else
             echo "⚠️ No proofledger.txt found."
           fi
-          echo "✅ Packaging..."
+
           if [ "$RUNNER_OS" = "Windows" ]; then
             pwsh -Command "Compress-Archive -Path release/* -DestinationPath jvm-without-java-${{ matrix.os }}.zip"
           else
@@ -79,12 +79,15 @@ jobs:
         id: hash
         shell: bash
         run: |
+          echo "🔒 Calculating SHA256 hash..."
           if [ "$RUNNER_OS" = "Windows" ]; then
-            HASH=$(certutil -hashfile jvm-without-java-${{ matrix.os }}.zip SHA256 | findstr /v "SHA256" | findstr /r "[A-F0-9]" | tr -d '\r')
+            HASH=$(certutil -hashfile jvm-without-java-${{ matrix.os }}.zip SHA256 | findstr /v "SHA256" | findstr /v "certutil" | tr -d '\r' | head -n 1)
             echo "hash=$HASH" >> $GITHUB_OUTPUT
+            echo "Windows SHA256: $HASH"
           else
             HASH=$(sha256sum jvm-without-java-${{ matrix.os }}.tar.gz | awk '{print $1}')
             echo "hash=$HASH" >> $GITHUB_OUTPUT
+            echo "Unix SHA256: $HASH"
           fi
 
       - name: "⬆️ Upload Artifact"
@@ -132,7 +135,7 @@ jobs:
           name: "JVM Without Java — ${{ steps.tag.outputs.version }}"
           body: |
             🧱 **3OS Executable Auto Release**
-            ✅ Meaning-level runtime compiled for 3 platforms  
+            ✅ Meaning-level runtime compiled for Ubuntu, macOS, Windows  
             🧾 ProofLedger included  
             🏷️ Auto-tag: `${{ steps.tag.outputs.version }}`  
 
