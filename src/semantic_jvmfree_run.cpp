@@ -12,7 +12,7 @@
 using namespace std;
 
 // ───────────────────────────────
-// 🔹 안전한 SHA256 (경계보호 포함)
+// 🔹 안전 SHA256 (Windows 포함 완전판)
 // ───────────────────────────────
 static inline uint32_t ROTR(uint32_t x, uint32_t n){return (x>>n)|(x<<(32-n));}
 
@@ -36,10 +36,11 @@ string sha256(const string &input){
     uint32_t H[8]={0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
                    0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
 
-    for(size_t chunk=0;chunk+63<data.size();chunk+=64){
-        uint32_t w[64];
+    for(size_t chunk=0;chunk+64<=data.size();chunk+=64){
+        uint32_t w[64]={0};
         for(int i=0;i<16;i++){
             size_t idx=chunk+4*i;
+            if(idx+3>=data.size()) break;
             w[i]=((uint32_t)data[idx]<<24)|((uint32_t)data[idx+1]<<16)|
                  ((uint32_t)data[idx+2]<<8)|((uint32_t)data[idx+3]);
         }
@@ -60,13 +61,15 @@ string sha256(const string &input){
         }
         H[0]+=a;H[1]+=b;H[2]+=c;H[3]+=d;H[4]+=e;H[5]+=f;H[6]+=g;H[7]+=h;
     }
+
     ostringstream oss;
-    for(int i=0;i<8;i++)oss<<hex<<setw(8)<<setfill('0')<<H[i];
+    for(int i=0;i<8;i++)
+        oss<<hex<<setw(8)<<setfill('0')<<H[i];
     return oss.str();
 }
 
 // ───────────────────────────────
-// 🔹 Tokenizer
+// 🔹 Java-like Tokenizer & Parser
 // ───────────────────────────────
 vector<string> tokenize(const string& src){
     regex r(R"([\w]+|[{}();=+\-*/<>])");
@@ -75,12 +78,8 @@ vector<string> tokenize(const string& src){
     for(;it!=end;++it)t.push_back(it->str());
     return t;
 }
-
 struct Node{string kind,name,type,value;vector<shared_ptr<Node>>children;};
 
-// ───────────────────────────────
-// 🔹 Parser (경계 검사 추가)
-// ───────────────────────────────
 shared_ptr<Node> parse_class(const vector<string>&t,size_t&i){
     if(i+1>=t.size())return nullptr;
     auto n=make_shared<Node>();n->kind="Class";n->name=t[i+1];i+=2;
@@ -110,7 +109,7 @@ shared_ptr<Node> parse_class(const vector<string>&t,size_t&i){
 }
 
 // ───────────────────────────────
-// 🔹 Runtime Interpreter
+// 🔹 Semantic Runtime
 // ───────────────────────────────
 class SemanticRuntime{
     unordered_map<string,string>vars;
