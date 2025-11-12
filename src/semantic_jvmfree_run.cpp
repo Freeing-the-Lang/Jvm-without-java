@@ -163,10 +163,14 @@ int main(int argc,char*argv[]){
         if(tok[i]=="class")cls=parse_class(tok,i);
         else ++i;
     }
-    if(!cls){cerr<<"Error: no class found.\n";return 1;}
+    if(!cls){
+        cerr<<"Error: no class found.\n";
+        return 1;
+    }
     SemanticRuntime rt;
     for(auto&m:cls->children)
         if(m->kind=="Method"&&m->name=="main")
             rt.runMethod(m);
     rt.writeLedger();
+    return 0; // ✅ 정상 종료
 }
