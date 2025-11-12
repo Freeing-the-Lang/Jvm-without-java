@@ -1,4 +1,4 @@
-name: "🏛️ JVM Without Java — Executable Release (3OS + SHA256 Stable)"
+name: "🏛️ JVM Without Java — Executable Release (3OS Stable No-Findstr)"
 
 on:
   push:
@@ -75,21 +75,6 @@ jobs:
           fi
           echo "✅ Done packaging for $RUNNER_OS."
 
-      - name: "📊 Compute SHA256 Hash"
-        id: hash
-        shell: bash
-        run: |
-          echo "🔒 Calculating SHA256 hash..."
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            HASH=$(certutil -hashfile jvm-without-java-${{ matrix.os }}.zip SHA256 | findstr /v "SHA256" | findstr /v "certutil" | tr -d '\r' | head -n 1)
-            echo "hash=$HASH" >> $GITHUB_OUTPUT
-            echo "Windows SHA256: $HASH"
-          else
-            HASH=$(sha256sum jvm-without-java-${{ matrix.os }}.tar.gz | awk '{print $1}')
-            echo "hash=$HASH" >> $GITHUB_OUTPUT
-            echo "Unix SHA256: $HASH"
-          fi
-
       - name: "⬆️ Upload Artifact"
         uses: actions/upload-artifact@v4
         with:
@@ -121,12 +106,13 @@ jobs:
         with:
           path: dist
 
-      - name: "🧮 Calculate Combined SHA256"
+      - name: "🧮 Calculate Combined SHA256 (Linux/macOS only)"
         id: hashes
         run: |
           echo "ubuntu_hash=$(sha256sum dist/jvm-without-java-ubuntu-latest.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "macos_hash=$(sha256sum dist/jvm-without-java-macos-latest.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
-          echo "windows_hash=$(sha256sum dist/jvm-without-java-windows-latest.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+          # Windows 해시는 생략
+          echo "windows_hash=Not calculated (Windows certutil disabled)" >> $GITHUB_OUTPUT
 
       - name: "🚀 Create GitHub Release"
         uses: softprops/action-gh-release@v1
