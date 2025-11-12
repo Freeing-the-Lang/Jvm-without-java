@@ -1,11 +1,11 @@
-name: "🏛️ JVM Without Java — 3OS Meaning-Based Build & Release"
+name: "🏛️ JVM Without Java — 3OS Meaning-Based Release"
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: "0 9 * * *"  # 매일 오전 9시 ProofLedger 자동 빌드 및 릴리즈
+    - cron: "0 9 * * *"  # 매일 오전 9시 자동 빌드
 
 permissions:
   contents: write
@@ -29,86 +29,65 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "⚙️ Verify Compiler"
-        shell: bash
-        run: |
-          echo "Using compiler:"
-          g++ --version || clang++ --version || echo "Compiler not found"
-
-      - name: "🏗️ Build Meaning-Based Runtime & Transpiler"
+      - name: "⚙️ Build Runtime & Transpiler"
         shell: bash
         run: |
           mkdir -p build
-          echo "🔧 Building interpreter..."
           g++ -std=c++17 src/semantic_jvmfree_run.cpp -O2 -o build/jvmrun
-          echo "🔧 Building transpiler..."
-          g++ -std=c++17 src/semantic_jvmfreec.cpp -O2 -o build/jvmc
-          echo "✅ Build done. Listing:"
-          ls -lh build || dir build
+          echo "✅ Build complete."
 
       - name: "🧪 Run Example"
         shell: bash
         run: |
           echo 'class Hello { int x = 10; void main() { System.out.println("Running meaning-level Java in C++!"); int y = 3; System.out.println("Sum: " + y); } }' > Hello.java
           ./build/jvmrun Hello.java || build\\jvmrun.exe Hello.java
-          echo "🧾 ProofLedger.txt content:"
           cat proofledger.txt || type proofledger.txt
 
-      - name: "📦 Prepare Release Assets"
+      - name: "📦 Package OS Artifact"
         shell: bash
         run: |
           mkdir -p release
-          cp proofledger.txt release/ || copy proofledger.txt release\\
           cp build/jvmrun* release/ || copy build\\jvmrun.exe release\\
-          cp build/jvmc* release/ || copy build\\jvmc.exe release\\
+          cp proofledger.txt release/ || copy proofledger.txt release\\
           tar -czf jvm-without-java-${{ matrix.os }}.tar.gz release
-          echo "✅ Packaged release for ${{ matrix.os }}"
 
-      - name: "⬆️ Upload OS Artifacts"
+      - name: "⬆️ Upload Artifact"
         uses: actions/upload-artifact@v4
         with:
           name: jvm-without-java-${{ matrix.os }}
-          path: |
-            jvm-without-java-${{ matrix.os }}.tar.gz
+          path: jvm-without-java-${{ matrix.os }}.tar.gz
 
   release:
-    name: "🚀 Create Combined Release"
+    name: "🚀 Create Unified Release"
     needs: [build-3os]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: "🧭 Checkout Repository"
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+      - uses: actions/checkout@v4
       - name: "🏷️ Create Version Tag"
         id: tag
         run: |
           VERSION="v1.0.$(date +%Y%m%d%H%M)"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git tag $VERSION
           git push origin $VERSION
-          echo "🪶 Created tag $VERSION"
 
-      - name: "⬇️ Download All OS Artifacts"
+      - name: "⬇️ Download All Artifacts"
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: "🚀 Create GitHub Release"
+      - name: "🚀 Publish GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.version }}
           name: "JVM Without Java — ${{ steps.tag.outputs.version }}"
           body: |
-            ### 🧱 JVM Without Java (3OS Auto Release)
-            - Meaning-based runtime (jvmrun)
-            - Semantic transpiler (jvmc)
-            - ProofLedger chain
-            - OS targets: **Ubuntu**, **macOS**, **Windows**
+            🧱 **3OS Auto Release**
+            - Runtime: `jvmrun`
+            - ProofLedger: included
+            - Built on: Ubuntu, macOS, Windows
           files: |
             dist/jvm-without-java-ubuntu-latest.tar.gz
             dist/jvm-without-java-macos-latest.tar.gz
