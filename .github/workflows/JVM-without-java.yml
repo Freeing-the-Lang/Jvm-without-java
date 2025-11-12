@@ -1,4 +1,4 @@
-name: "🏛️ JVM Without Java — 3OS Meaning-Based Release (src/Hello.java Edition)"
+name: "🏛️ JVM Without Java — 3OS Auto Build & Executable Release"
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build-3os:
-    name: "🧱 Build & Test (${{ matrix.os }})"
+    name: "🧱 Build Executable (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -25,60 +25,55 @@ jobs:
       - name: "🧭 Checkout Repository"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Build Runtime"
+      - name: "⚙️ Build Meaning-Based Runtime"
         shell: bash
         run: |
           mkdir -p build
-          echo "🔧 Building meaning-based runtime..."
+          echo "🔧 Building runtime for $RUNNER_OS..."
           g++ -std=c++17 src/semantic_jvmfree_run.cpp -O2 -o build/jvmrun
-          echo "✅ Build complete."
+          echo "✅ Build complete:"
           ls -lh build || dir build
 
-      # 🟢 Linux/macOS
-      - name: "🧪 Run Example (Linux/macOS)"
-        if: runner.os != 'Windows'
+      # 🧪 Run if src/Hello.java exists
+      - name: "🧪 Run src/Hello.java"
         shell: bash
         run: |
           if [ ! -f "src/Hello.java" ]; then
-            echo "⚠️ src/Hello.java not found, skipping run."
+            echo "⚠️ src/Hello.java not found, skipping test."
             exit 0
           fi
-          echo "🚀 Running src/Hello.java on $RUNNER_OS ..."
-          ./build/jvmrun src/Hello.java
+          echo "🚀 Running test with src/Hello.java ..."
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            pwsh -Command ".\build\jvmrun.exe src\Hello.java"
+          else
+            ./build/jvmrun src/Hello.java
+          fi
           echo "📄 ProofLedger:"
-          cat proofledger.txt
+          cat proofledger.txt || type proofledger.txt
 
-      # 🟦 Windows (PowerShell)
-      - name: "🧪 Run Example (Windows)"
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (!(Test-Path "src/Hello.java")) {
-            Write-Host "⚠️ src/Hello.java not found, skipping run."
-            exit 0
-          }
-          Write-Host "🚀 Running src/Hello.java on Windows ..."
-          .\build\jvmrun.exe src\Hello.java
-          Write-Host "📄 ProofLedger:"
-          Get-Content proofledger.txt
-
-      - name: "📦 Package OS Artifact"
+      - name: "📦 Package Executable"
         shell: bash
         run: |
           mkdir -p release
           cp build/jvmrun* release/ || copy build\\jvmrun.exe release\\
           cp proofledger.txt release/ || copy proofledger.txt release\\
-          tar -czf jvm-without-java-${{ matrix.os }}.tar.gz release
-          echo "✅ Packaged: jvm-without-java-${{ matrix.os }}.tar.gz"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            7z a jvm-without-java-${{ matrix.os }}.zip release
+          else
+            tar -czf jvm-without-java-${{ matrix.os }}.tar.gz release
+          fi
+          echo "✅ Packaged for $RUNNER_OS"
 
       - name: "⬆️ Upload Artifact"
         uses: actions/upload-artifact@v4
         with:
           name: jvm-without-java-${{ matrix.os }}
-          path: jvm-without-java-${{ matrix.os }}.tar.gz
+          path: |
+            jvm-without-java-${{ matrix.os }}.tar.gz
+            jvm-without-java-${{ matrix.os }}.zip
 
   release:
-    name: "🚀 Create Unified Release"
+    name: "🚀 Publish Executable Release"
     needs: [build-3os]
     runs-on: ubuntu-latest
     steps:
@@ -95,22 +90,23 @@ jobs:
           git push origin $VERSION
           echo "🪶 Created tag $VERSION"
 
-      - name: "⬇️ Download All Artifacts"
+      - name: "⬇️ Download Artifacts"
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: "🚀 Publish GitHub Release"
+      - name: "🚀 Create GitHub Release with Executables"
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.version }}
           name: "JVM Without Java — ${{ steps.tag.outputs.version }}"
           body: |
-            🧱 **3OS Auto Release (src/Hello.java Edition)**
-            - Runtime: `jvmrun`
-            - ProofLedger included
-            - Built for: Ubuntu, macOS, Windows
+            🧱 **3OS Executable Auto Release**
+            - ✅ Compiled meaning-level C++ runtime (`jvmrun`)
+            - 🧾 ProofLedger (integrity log)
+            - 🖥️ OS targets: Ubuntu, macOS, Windows
+            - 🏷️ Auto-tag: `${{ steps.tag.outputs.version }}`
           files: |
             dist/jvm-without-java-ubuntu-latest.tar.gz
             dist/jvm-without-java-macos-latest.tar.gz
-            dist/jvm-without-java-windows-latest.tar.gz
+            dist/jvm-without-java-windows-latest.zip
